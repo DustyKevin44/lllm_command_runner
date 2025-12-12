@@ -1,61 +1,44 @@
-# assistant/tools.py
+import os
 import subprocess
-import sys
-import tempfile
-from pydantic import BaseModel
+from typing import Dict, Any
 
-class Tool(BaseModel):
-    name: str
-    description: str
-
-    def call(self, **kwargs):
-        raise NotImplementedError
-
+class Tool:
+    """Base class for all tools."""
+    def call(self, *args, **kwargs) -> Any:
+        raise NotImplementedError()
 
 class RunPython(Tool):
-    name: str = "run_python"
-    description: str = "Execute Python code and return stdout/stderr"
+    """
+    Tool to run Python scripts.
+    Usage: TOOLS['run_python'].call(script_name='test')
+    """
+    def __init__(self, scripts_dir: str = "scripts"):
+        self.scripts_dir = scripts_dir
 
-    def call(self, code: str):
-        """
-        Runs Python code safely in a subprocess.
-        """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
-            tmp.write(code)
-            tmp_path = tmp.name
+    def call(self, script_name: str):
+        if not script_name:
+            return {"stdout": "", "stderr": "No script name provided."}
 
-        process = subprocess.run(
-            [sys.executable, tmp_path],
+        normalized = script_name.lower().replace(" ", "_")
+        script_path = None
+
+        # Search for a matching Python file
+        for f in os.listdir(self.scripts_dir):
+            if normalized in f.lower() and f.endswith(".py"):
+                script_path = os.path.join(self.scripts_dir, f)
+                break
+
+        if not script_path or not os.path.exists(script_path):
+            return {"stdout": "", "stderr": f"File not found: {script_name}"}
+
+        # Execute the Python script
+        result = subprocess.run(
+            ["python", script_path],
             capture_output=True,
             text=True
         )
 
-        return {
-            "stdout": process.stdout,
-            "stderr": process.stderr,
-            "returncode": process.returncode
-        }
+        return {"stdout": result.stdout, "stderr": result.stderr}
 
-
-TOOLS = {
-    "run_python": RunPython(),
-}
-import os
-
-def find_python_file(user_input):
-    """
-    Map natural-language input to a file in the scripts folder.
-    Example: "hello world" -> "hello_world.py" or "helloWorld.py"
-    """
-    scripts = [f for f in os.listdir("scripts") if f.endswith(".py")]
-    # Normalize input
-    normalized = user_input.lower().replace("run ", "").replace("start ", "").replace("execute ", "").replace(" ", "_")
-    
-    # Try to find exact match
-    for f in scripts:
-        fname = f.lower().replace(".py", "")
-        if normalized == fname or normalized.replace("_", "") == fname.replace("_", ""):
-            return os.path.join("scripts", f)
-    return None
-
-
+# Dictionary to register tools
+TOOLS: Dict[str, Tool] = {}

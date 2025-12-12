@@ -1,21 +1,13 @@
-from assistant.tools import TOOLS
-import json
+from .tools import TOOLS
 
 class CommandRunner:
+    """
+    Executes registered tools with given arguments.
+    """
+    def __init__(self, tools: dict):
+        self.tools = tools
 
-    def run(self, tool_call):
-        if isinstance(tool_call, str):
-            tool_call = json.loads(tool_call)
-
-        tool_name = tool_call["tool"]
-        args = tool_call.get("args", {})
-
-        # Map 'arguments' to 'code' for backward compatibility
-        if "arguments" in args and "code" not in args:
-            args["code"] = args.pop("arguments")
-
-        if tool_name not in TOOLS:
-            return {"error": f"Unknown tool: {tool_name}"}
-
-        return TOOLS[tool_name].call(**args)
-
+    def run(self, tool_name: str, **kwargs):
+        if tool_name not in self.tools:
+            return {"stdout": "", "stderr": f"Unknown tool: {tool_name}"}
+        return self.tools[tool_name].call(**kwargs)
